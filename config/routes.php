@@ -1,5 +1,5 @@
 <?php
 
-Router::Route('', 'HomeController@Index', 'GET')->middleware('test');
+Router::Route('{id}', 'HomeController@Index', 'GET')->middleware('Auth');
 
 ?>

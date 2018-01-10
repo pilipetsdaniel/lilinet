@@ -22,7 +22,6 @@ class Autoloader
      */
     private function autoload($class) {
         $path = $this->namespaceToPath($class);
-        var_dump($path);
         if (file_exists($path)) {
             require_once $path;
             return true;

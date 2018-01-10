@@ -5,6 +5,7 @@ class Router
     private static $_instance = null;
     private $get_routes = [];
     private $post_routes = [];
+    private $route;
 
     // singleton
     private function __construct() {
@@ -18,6 +19,43 @@ class Router
             self::$_instance = new self();
         }
         return self::$_instance;
+    }
+
+    /**
+     * @param $route
+     * @param $mix_name
+     * @param string $type
+     * @return Router
+     */
+    public static function Route($route, $mix_name, $type = 'GET') {
+
+        $explode_mix_name = self::explode_mix_name($mix_name);
+        $controller_name = array_shift($explode_mix_name);
+        $method_name = array_shift($explode_mix_name);
+
+        if ($type == 'GET') {
+            self::instance()->get_routes[ROOT . $route] = [
+                'controller' => $controller_name,
+                'method' => $method_name
+            ];
+        }
+        else if ($type == 'POST') {
+            self::instance()->post_routes[ROOT . $route] = [
+                'controller' => $controller_name,
+                'method' => $method_name
+            ];
+        }
+
+        // TODO подумать над передачей маршрута
+        self::instance()->route = &self::instance()->get_routes[ROOT . $route];
+        return self::$_instance;
+    }
+
+    /**
+     * @param $middleware_name
+     */
+    public function middleware ($middleware_name) {
+        self::instance()->route['middleware'] = $middleware_name;
     }
 
     /**
@@ -106,32 +144,6 @@ class Router
         return $data;
     }
 
-    public static function Route($route, $mix_name, $type = 'GET') {
-
-        $explode_mix_name = self::explode_mix_name($mix_name);
-        $controller_name = array_shift($explode_mix_name);
-        $method_name = array_shift($explode_mix_name);
-
-        if ($type == 'GET') {
-            self::instance()->get_routes[ROOT . $route] = [
-                'controller' => $controller_name,
-                'method' => $method_name
-            ];
-        }
-        if ($type == 'POST') {
-            self::instance()->post_routes[ROOT . $route] = [
-                'controller' => $controller_name,
-                'method' => $method_name
-            ];
-        }
-
-        return self::instance();
-    }
-
-    public function middleware ($middleware_name) {
-
-    }
-
     public function run () {
         $URI = self::instance()->getURI();
 
@@ -146,16 +158,31 @@ class Router
         foreach (self::instance()->$routes_name as $route => $mix_name) {
             $pattern = self::generate_pattern($route);
             if (preg_match("~$pattern~", $URI)) {
+                // Middleware
+                if (!empty($mix_name['middleware'])) {
+                    $middleware_name = $mix_name['middleware'];
+                    $middleware_file = DOC_ROOT . '/App/Middlewares/' . $middleware_name . '.php';
+                    if (file_exists($middleware_file)) {
+                        $full_middleware_name = 'App\Middlewares\\' . $middleware_name;
+                        $Middleware = new $full_middleware_name;
+                        $result = call_user_func_array([$Middleware, 'Verification'], []);
+                        if (!$result) {
+                            call_user_func_array([$Middleware, 'Redirect'], []);
+                            exit;
+                        }
+                    }
+                }
+
                 $subject = self::generate_subject($route);
                 $data_str = preg_replace("~$pattern~", $subject, $URI);
                 $data = self::explode_data($data_str);
                 $controller_name = $mix_name['controller'];
                 $method_name = $mix_name['method'];
-                $controllerFile = DOC_ROOT . '/App/Controllers/' . $controller_name . '.php';
-                if (file_exists($controllerFile)) {
-                    require_once $controllerFile;
-                    $Controller = new $controller_name;
-                    $result = call_user_func_array(array($controller_name, $method_name), array($data));
+                $controller_file = DOC_ROOT . '/App/Controllers/' . $controller_name . '.php';
+                if (file_exists($controller_file)) {
+                    $full_controller_name = 'App\Controllers\\' . $controller_name;
+                    $Controller = new $full_controller_name;
+                    $result = call_user_func_array([$Controller, $method_name], [$data]);
                     if ($result) {
                         break;
                     }
