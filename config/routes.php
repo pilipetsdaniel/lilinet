@@ -1,5 +1,5 @@
 <?php
 
-Router::Route('', 'HomeController@Index', 'GET')->middleware();
+Router::Route('', 'HomeController@Index', 'GET')->middleware('test');
 
 ?>
